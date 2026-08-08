@@ -78,6 +78,7 @@ class App:
         self.doc=None;self.path=None;self.doc_type=None;self.page_index=0
         self.render_image=None;self.tk_image=None;self.signature_pil=None;self.signature_tk=None
         self.sig_x=.58;self.sig_y=.72;self.sig_w=.24
+        self.confirmed_signatures=[]
         self.server=None
         self.build_ui();self.start_server();self.refresh_pairing();self.poll_signature()
 
@@ -107,6 +108,8 @@ class App:
         ttk.Button(actions,text='+',width=4,command=lambda:self.resize_sig(.03)).pack(side='left')
         self.save_btn=ttk.Button(actions,text='Save signed document',command=self.save_signed,state='disabled')
         self.save_btn.pack(side='right')
+        self.confirm_btn=ttk.Button(actions,text='Confirm on this page & Next',command=self.confirm_pdf_signature,state='disabled')
+        self.confirm_btn.pack(side='right',padx=8)
         self.word_cursor_btn=ttk.Button(actions,text='Insert at Word cursor',command=self.insert_at_word_cursor,state='disabled')
         self.word_cursor_btn.pack(side='right',padx=8)
 
@@ -121,6 +124,7 @@ class App:
 
         sig=ttk.LabelFrame(right,text='Received signature',padding=14);sig.pack(fill='x',pady=12)
         self.sig_preview=ttk.Label(sig,text='No signature received');self.sig_preview.pack(pady=8)
+        ttk.Button(sig,text='Save signature as PNG',command=self.save_signature_png).pack(fill='x',pady=(0,6))
         ttk.Button(sig,text='Clear signature',command=self.clear_signature).pack(fill='x')
 
         note=ttk.LabelFrame(right,text='Security',padding=12);note.pack(fill='x')
@@ -149,7 +153,8 @@ class App:
         with LOCK:
             STATE['code']=''.join(random.choice('ABCDEFGHJKLMNPQRSTUVWXYZ23456789') for _ in range(6))
             STATE['pin']=str(random.randint(1000,9999));STATE['paired']=False;STATE['signature']=None
-        self.signature_pil=None;self.sig_preview.config(image='',text='No signature received');self.save_btn.config(state='disabled');self.word_cursor_btn.config(state='disabled')
+        self.signature_pil=None;self.confirmed_signatures=[]
+        self.sig_preview.config(image='',text='No signature received');self.save_btn.config(state='disabled');self.confirm_btn.config(state='disabled');self.word_cursor_btn.config(state='disabled')
         self.refresh_pairing();self.render_current();self.status.config(text='New local signing session created.')
 
     def open_phone_local(self):
@@ -166,16 +171,22 @@ class App:
                 self.signature_pil=im
                 prev=im.copy();prev.thumbnail((250,100));self.sig_prev_tk=ImageTk.PhotoImage(prev)
                 self.sig_preview.config(image=self.sig_prev_tk,text='')
-                if self.doc_type:self.save_btn.config(state='normal')
-                if self.doc_type=='docx' and WORD_COM_AVAILABLE:self.word_cursor_btn.config(state='normal')
+                if self.doc_type=='pdf':
+                    self.confirm_btn.config(state='normal')
+                    self.save_btn.config(state='normal' if self.confirmed_signatures else 'disabled')
+                elif self.doc_type=='docx':
+                    self.save_btn.config(state='normal')
+                    if WORD_COM_AVAILABLE:self.word_cursor_btn.config(state='normal')
                 self.render_current();self.status.config(text='Signature received directly from phone.')
             except Exception as e:self.status.config(text=f'Could not read signature: {e}')
         self.root.after(600,self.poll_signature)
 
     def clear_signature(self):
         with LOCK:STATE['signature']=None
-        self.signature_pil=None;self.sig_preview.config(image='',text='No signature received');self.save_btn.config(state='disabled');self.word_cursor_btn.config(state='disabled')
-        self.render_current();self.status.config(text='Signature cleared.')
+        self.signature_pil=None;self.sig_preview.config(image='',text='No signature received')
+        self.confirm_btn.config(state='disabled');self.word_cursor_btn.config(state='disabled')
+        self.save_btn.config(state='normal' if self.doc_type=='pdf' and self.confirmed_signatures else 'disabled')
+        self.render_current();self.status.config(text='Current signature cleared. Confirmed PDF signatures were kept.')
 
     def open_pdf(self):
         p=filedialog.askopenfilename(filetypes=[('PDF documents','*.pdf')])
@@ -183,8 +194,10 @@ class App:
         try:
             if self.doc:self.doc.close()
             self.doc=fitz.open(p);self.path=Path(p);self.doc_type='pdf';self.page_index=0
-            self.file_label.config(text=self.path.name);self.status.config(text='PDF loaded locally. Click the page to position the signature.')
-            if self.signature_pil:self.save_btn.config(state='normal')
+            self.confirmed_signatures=[]
+            self.file_label.config(text=self.path.name);self.status.config(text='PDF loaded locally. Place the signature, confirm it on this page, then continue to the next page.')
+            self.save_btn.config(state='disabled')
+            self.confirm_btn.config(state='normal' if self.signature_pil else 'disabled')
             self.word_cursor_btn.config(state='disabled')
             self.render_current()
         except Exception as e:messagebox.showerror('Open PDF',str(e))
@@ -193,12 +206,13 @@ class App:
         p=filedialog.askopenfilename(filetypes=[('Word documents','*.docx')])
         if not p:return
         self.path=Path(p);self.doc_type='docx';self.doc=None;self.page_index=0
-        self.file_label.config(text=self.path.name);self.page_label.config(text='Word document')
+        self.file_label.config(text=self.path.name);self.page_label.config(text='Word document');self.confirm_btn.config(state='disabled')
         self.canvas.delete('all')
         w=max(self.canvas.winfo_width(),600);h=max(self.canvas.winfo_height(),500)
         self.canvas.create_rectangle(80,40,w-80,h-40,fill='white',outline='#ccd6de')
         self.canvas.create_text(w/2,120,text='Microsoft Word (.docx)',font=('Segoe UI',22,'bold'),fill='#10243d')
-        self.canvas.create_text(w/2,180,text='This local build appends the received signature near the end of the Word document.',width=w-240,font=('Segoe UI',13),fill='#5d7081')
+        self.canvas.create_text(w/2,180,text='This local build appends the received signature near the end of the Word document.',
+                                width=w-240,font=('Segoe UI',13),fill='#5d7081')
         if self.signature_pil:
             self.canvas.create_text(w/2,250,text='Signature received - ready to save or insert at the current Word cursor.',font=('Segoe UI',14,'bold'),fill='#177a72')
             self.save_btn.config(state='normal')
@@ -226,12 +240,20 @@ class App:
             self.canvas.delete('all');x=(self.canvas.winfo_width()-pix.width)//2;y=(self.canvas.winfo_height()-pix.height)//2
             self.page_origin=(x,y,pix.width,pix.height)
             self.canvas.create_image(x,y,anchor='nw',image=self.tk_image)
+            self.confirmed_tk=[]
+            for item in [s for s in self.confirmed_signatures if s['page']==self.page_index]:
+                sigim=item['image'];sw=max(70,int(pix.width*item['w']));ratio=sigim.height/max(sigim.width,1);sh=max(24,int(sw*ratio))
+                disp=sigim.resize((sw,sh),Image.Resampling.LANCZOS);tkimg=ImageTk.PhotoImage(disp);self.confirmed_tk.append(tkimg)
+                sx=x+int(item['x']*pix.width)-sw//2;sy=y+int(item['y']*pix.height)-sh//2
+                self.canvas.create_image(sx,sy,anchor='nw',image=tkimg,tags='confirmed')
             if self.signature_pil:
                 sw=max(70,int(pix.width*self.sig_w));ratio=self.signature_pil.height/max(self.signature_pil.width,1);sh=max(24,int(sw*ratio))
                 s=self.signature_pil.resize((sw,sh),Image.Resampling.LANCZOS);self.signature_tk=ImageTk.PhotoImage(s)
                 sx=x+int(self.sig_x*pix.width)-sw//2;sy=y+int(self.sig_y*pix.height)-sh//2
                 self.canvas.create_image(sx,sy,anchor='nw',image=self.signature_tk,tags='sig')
-            self.page_label.config(text=f'Page {self.page_index+1} of {len(self.doc)}')
+            count=len([s for s in self.confirmed_signatures if s['page']==self.page_index])
+            suffix=f' - {count} confirmed signature(s)' if count else ''
+            self.page_label.config(text=f'Page {self.page_index+1} of {len(self.doc)}{suffix}')
         except Exception as e:self.status.config(text=f'Preview error: {e}')
 
     def place_signature(self,event):
@@ -243,12 +265,45 @@ class App:
     def resize_sig(self,d):
         self.sig_w=max(.08,min(.5,self.sig_w+d));self.render_current()
 
+    def confirm_pdf_signature(self):
+        if self.doc_type!='pdf' or not self.doc or not self.signature_pil:
+            messagebox.showinfo('Confirm signature','Open a PDF and receive a signature first.')
+            return
+        self.confirmed_signatures.append({
+            'page':self.page_index,'x':self.sig_x,'y':self.sig_y,'w':self.sig_w,'image':self.signature_pil.copy()
+        })
+        self.save_btn.config(state='normal')
+        current=self.page_index+1
+        total=len(self.doc)
+        if self.page_index < total-1:
+            self.page_index+=1
+            self.status.config(text=f'Signature confirmed on page {current}. Moved to page {self.page_index+1}. Position and confirm again if this page also needs signing.')
+        else:
+            self.status.config(text=f'Signature confirmed on page {current}. This is the last page; you can now save the signed PDF.')
+        self.render_current()
+
+    def save_signature_png(self):
+        if not self.signature_pil:
+            messagebox.showinfo('Save signature','Receive a signature from the phone first.')
+            return
+        out=filedialog.asksaveasfilename(
+            defaultextension='.png',initialfile='Signature.png',
+            filetypes=[('PNG image with transparency','*.png')]
+        )
+        if not out:return
+        try:
+            self.signature_pil.save(out,format='PNG')
+            self.status.config(text=f'Signature PNG saved: {out}')
+            messagebox.showinfo('Signature saved','Signature saved as a transparent PNG.\n\nYou can insert it into Adobe, Word, email, or other programs.')
+        except Exception as e:
+            messagebox.showerror('Save signature',str(e))
+
     def insert_at_word_cursor(self):
         if not self.path or self.doc_type!='docx' or not self.signature_pil:
             messagebox.showinfo('Word placement','Open a Word document and receive a signature first.')
             return
         if not WORD_COM_AVAILABLE:
-            messagebox.showerror('Word placement','Microsoft Word cursor placement is not available in this build.')
+            messagebox.showerror('Word placement','Native Word placement is not available. Re-run the installer so pywin32 can be installed.')
             return
         try:
             temp = Path.home()/'AppData'/'Local'/'Doc Sign'
@@ -261,7 +316,13 @@ class App:
             active_path = Path(doc.FullName).resolve()
             target_path = self.path.resolve()
             if active_path != target_path:
-                answer=messagebox.askyesno('Word document check','The active Microsoft Word document is not the same file loaded in Doc Sign.\n\n'+f'Loaded in Doc Sign:\n{target_path.name}\n\n'+f'Active in Word:\n{active_path.name}\n\n'+'Insert the signature into the active Word document anyway?')
+                answer=messagebox.askyesno(
+                    'Word document check',
+                    'The active Microsoft Word document is not the same file loaded in Doc Sign.\n\n'
+                    f'Loaded in Doc Sign:\n{target_path.name}\n\n'
+                    f'Active in Word:\n{active_path.name}\n\n'
+                    'Insert the signature into the active Word document anyway?'
+                )
                 if not answer:return
 
             sel = word.Selection
@@ -271,26 +332,36 @@ class App:
             self.status.config(text='Signature inserted at the current Microsoft Word cursor position.')
             messagebox.showinfo('Word placement','Signature inserted at the current Word cursor.\n\nUse Word Save or Save As to keep the signed document.')
         except Exception as e:
-            messagebox.showerror('Word placement','Could not insert the signature into Microsoft Word.\n\nMake sure Microsoft Word is open, the document is active, and the cursor is at the required position.\n\n'+str(e))
+            messagebox.showerror(
+                'Word placement',
+                'Could not insert the signature into Microsoft Word.\n\n'
+                'Make sure Microsoft Word is open, the document is active, and the cursor is at the required position.\n\n'
+                + str(e)
+            )
 
     def save_signed(self):
-        if not self.path or not self.signature_pil:return
+        if not self.path:return
         if self.doc_type=='pdf':self.save_pdf()
-        elif self.doc_type=='docx':self.save_word()
+        elif self.doc_type=='docx' and self.signature_pil:self.save_word()
 
     def save_pdf(self):
         default=self.path.stem+'_Signed.pdf'
         out=filedialog.asksaveasfilename(defaultextension='.pdf',initialfile=default,filetypes=[('PDF','*.pdf')])
         if not out:return
         try:
-            doc=fitz.open(str(self.path));page=doc[self.page_index];rect=page.rect
-            sw=rect.width*self.sig_w;ratio=self.signature_pil.height/max(self.signature_pil.width,1);sh=sw*ratio
-            cx=self.sig_x*rect.width;cy=self.sig_y*rect.height
-            target=fitz.Rect(cx-sw/2,cy-sh/2,cx+sw/2,cy+sh/2)
-            bio=io.BytesIO();self.signature_pil.save(bio,format='PNG')
-            page.insert_image(target,stream=bio.getvalue(),overlay=True,keep_proportion=True)
-            doc.save(out);doc.close();self.status.config(text=f'Signed PDF saved: {out}')
-            messagebox.showinfo('Saved','Signed PDF saved.\n\nThe original document was not changed.')
+            if not self.confirmed_signatures:
+                messagebox.showinfo('Save PDF','Confirm at least one signature on a PDF page first.')
+                return
+            doc=fitz.open(str(self.path))
+            for item in self.confirmed_signatures:
+                page=doc[item['page']];rect=page.rect;sigim=item['image']
+                sw=rect.width*item['w'];ratio=sigim.height/max(sigim.width,1);sh=sw*ratio
+                cx=item['x']*rect.width;cy=item['y']*rect.height
+                target=fitz.Rect(cx-sw/2,cy-sh/2,cx+sw/2,cy+sh/2)
+                bio=io.BytesIO();sigim.save(bio,format='PNG')
+                page.insert_image(target,stream=bio.getvalue(),overlay=True,keep_proportion=True)
+            doc.save(out);doc.close();self.status.config(text=f'Signed PDF saved with {len(self.confirmed_signatures)} signature(s): {out}')
+            messagebox.showinfo('Saved',f'Signed PDF saved with {len(self.confirmed_signatures)} confirmed signature(s).\n\nThe original document was not changed.')
         except Exception as e:messagebox.showerror('Save PDF',str(e))
 
     def save_word(self):
