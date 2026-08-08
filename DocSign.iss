@@ -1,5 +1,5 @@
 #define MyAppName "Doc Sign"
-#define MyAppVersion "1.0.2"
+#define MyAppVersion "1.0.3"
 #define MyAppPublisher "ECI Automation"
 #define MyAppExeName "Doc Sign.exe"
 
@@ -19,12 +19,13 @@ PrivilegesRequired=admin
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 UninstallDisplayIcon={app}\{#MyAppExeName}
-CloseApplications=yes
+; Do not use Inno Setup Restart Manager for this one-file PyInstaller app.
+; It can falsely report Doc Sign as still using files even after uninstall/exit.
+CloseApplications=no
 RestartApplications=no
-CloseApplicationsFilter=Doc Sign.exe
 
 [Files]
-Source: "dist\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion restartreplace
+Source: "dist\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
 Source: "README.md"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
