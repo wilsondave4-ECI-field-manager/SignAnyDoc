@@ -116,7 +116,7 @@ class App:
         root.minsize(1000, 720)
         self.doc = None
         self.path = None
-        self.doc_type = None  # pdf or word
+        self.doc_type = None
         self.page_index = 0
         self.preview_pdf_path = None
         self.signature_pil = None
@@ -163,8 +163,8 @@ class App:
         actions = ttk.Frame(left)
         actions.pack(fill='x')
         ttk.Label(actions, text='Signature size').pack(side='left')
-        ttk.Button(actions, text='-', width=4, command=lambda: self.resize_sig(-.03)).pack(side='left', padx=3)
-        ttk.Button(actions, text='+', width=4, command=lambda: self.resize_sig(.03)).pack(side='left')
+        ttk.Button(actions, text='-', width=4, command=lambda: self.resize_sig(-.015)).pack(side='left', padx=3)
+        ttk.Button(actions, text='+', width=4, command=lambda: self.resize_sig(.015)).pack(side='left')
         self.save_btn = ttk.Button(actions, text='Save signed document', command=self.save_signed, state='disabled')
         self.save_btn.pack(side='right')
         self.confirm_btn = ttk.Button(actions, text='Confirm on this page & Next', command=self.confirm_signature, state='disabled')
@@ -377,9 +377,9 @@ class App:
             self.confirmed_tk = []
             for item in [s for s in self.confirmed_signatures if s['page'] == self.page_index]:
                 sigim = item['image']
-                sw = max(70, int(pix.width * item['w']))
+                sw = max(20, int(pix.width * item['w']))
                 ratio = sigim.height / max(sigim.width, 1)
-                sh = max(24, int(sw * ratio))
+                sh = max(8, int(sw * ratio))
                 disp = sigim.resize((sw, sh), Image.Resampling.LANCZOS)
                 tkimg = ImageTk.PhotoImage(disp)
                 self.confirmed_tk.append(tkimg)
@@ -387,9 +387,9 @@ class App:
                 sy = y + int(item['y'] * pix.height) - sh // 2
                 self.canvas.create_image(sx, sy, anchor='nw', image=tkimg)
             if self.signature_pil:
-                sw = max(70, int(pix.width * self.sig_w))
+                sw = max(20, int(pix.width * self.sig_w))
                 ratio = self.signature_pil.height / max(self.signature_pil.width, 1)
-                sh = max(24, int(sw * ratio))
+                sh = max(8, int(sw * ratio))
                 disp = self.signature_pil.resize((sw, sh), Image.Resampling.LANCZOS)
                 self.signature_tk = ImageTk.PhotoImage(disp)
                 sx = x + int(self.sig_x * pix.width) - sw // 2
@@ -413,7 +413,7 @@ class App:
             self.render_current()
 
     def resize_sig(self, delta):
-        self.sig_w = max(.06, min(.5, self.sig_w + delta))
+        self.sig_w = max(.02, min(.65, self.sig_w + delta))
         self.render_current()
 
     def confirm_signature(self):
