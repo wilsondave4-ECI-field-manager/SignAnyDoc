@@ -6,6 +6,7 @@ on:
     branches: [ main ]
     paths:
       - 'doc_sign.py'
+      - 'doc_sign_v2.py'
       - 'phone.html'
       - 'requirements.txt'
       - 'DocSign.iss'
@@ -38,7 +39,8 @@ jobs:
             --name "Doc Sign" `
             --add-data "phone.html;." `
             --hidden-import win32timezone `
-            doc_sign.py
+            --hidden-import doc_sign `
+            doc_sign_v2.py
           if (!(Test-Path "dist\Doc Sign.exe")) { throw "Doc Sign.exe was not created" }
 
       - name: Install Inno Setup
