@@ -1,5 +1,5 @@
 #define MyAppName "Doc Sign"
-#define MyAppVersion "1.0.0"
+#define MyAppVersion "1.0.1"
 #define MyAppPublisher "ECI Automation"
 #define MyAppExeName "Doc Sign.exe"
 
@@ -28,9 +28,12 @@ Name: "{autoprograms}\Doc Sign"; Filename: "{app}\{#MyAppExeName}"
 Name: "{autodesktop}\Doc Sign"; Filename: "{app}\{#MyAppExeName}"
 
 [Run]
+; Remove old rules first, then allow only Doc Sign TCP/8765 on Private networks.
 Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall delete rule name=""Doc Sign Local Signing"""; Flags: runhidden waituntilterminated
-Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall add rule name=""Doc Sign Local Signing"" dir=in action=allow protocol=TCP localport=8765 profile=private program=""{app}\{#MyAppExeName}"" enable=yes"; Flags: runhidden waituntilterminated
+Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall delete rule name=""Doc Sign Local Signing TCP 8765"""; Flags: runhidden waituntilterminated
+Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall add rule name=""Doc Sign Local Signing TCP 8765"" dir=in action=allow protocol=TCP localport=8765 profile=private program=""{app}\{#MyAppExeName}"" enable=yes"; Flags: runhidden waituntilterminated
 Filename: "{app}\{#MyAppExeName}"; Description: "Launch Doc Sign"; Flags: nowait postinstall skipifsilent
 
 [UninstallRun]
 Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall delete rule name=""Doc Sign Local Signing"""; Flags: runhidden waituntilterminated
+Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall delete rule name=""Doc Sign Local Signing TCP 8765"""; Flags: runhidden waituntilterminated
