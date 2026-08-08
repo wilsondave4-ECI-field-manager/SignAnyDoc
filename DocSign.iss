@@ -28,9 +28,9 @@ Name: "{autoprograms}\Doc Sign"; Filename: "{app}\{#MyAppExeName}"
 Name: "{autodesktop}\Doc Sign"; Filename: "{app}\{#MyAppExeName}"
 
 [Run]
-Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall delete rule name=\"Doc Sign Local Signing\""; Flags: runhidden waituntilterminated
-Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall add rule name=\"Doc Sign Local Signing\" dir=in action=allow protocol=TCP localport=8765 profile=private program=\"{app}\{#MyAppExeName}\" enable=yes"; Flags: runhidden waituntilterminated
+Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall delete rule name=""Doc Sign Local Signing"""; Flags: runhidden waituntilterminated
+Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall add rule name=""Doc Sign Local Signing"" dir=in action=allow protocol=TCP localport=8765 profile=private program=""{app}\{#MyAppExeName}"" enable=yes"; Flags: runhidden waituntilterminated
 Filename: "{app}\{#MyAppExeName}"; Description: "Launch Doc Sign"; Flags: nowait postinstall skipifsilent
 
 [UninstallRun]
-Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall delete rule name=\"Doc Sign Local Signing\""; Flags: runhidden waituntilterminated
+Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall delete rule name=""Doc Sign Local Signing"""; Flags: runhidden waituntilterminated
