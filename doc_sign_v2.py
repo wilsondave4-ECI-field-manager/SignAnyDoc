@@ -1,3 +1,4 @@
+import os
 import tempfile
 from pathlib import Path
 import tkinter as tk
@@ -8,9 +9,7 @@ import fitz
 import doc_sign as core
 
 
-# Keep the proven signing engine, but replace document lifecycle/Word preview handling.
 _original_build_ui = core.App.build_ui
-_original_close_preview = core.App.close_preview
 
 
 def open_help(self):
@@ -19,7 +18,6 @@ def open_help(self):
         text = help_path.read_text(encoding='utf-8')
     except Exception:
         text = 'Doc Sign help file could not be loaded.'
-
     win = tk.Toplevel(self.root)
     win.title('Doc Sign - Help / How to Use')
     win.geometry('780x700')
@@ -39,7 +37,6 @@ def build_ui_v2(self):
     _original_build_ui(self)
     try:
         top = self.root.winfo_children()[0]
-        # Put the author credit directly below the app title in the existing title label.
         for child in top.winfo_children():
             if isinstance(child, ttk.Label):
                 try:
@@ -63,7 +60,6 @@ def close_preview_v2(self):
     except Exception:
         pass
     self.doc = None
-
     old_preview = getattr(self, 'preview_pdf_path', None)
     self.preview_pdf_path = None
     if old_preview:
@@ -99,7 +95,6 @@ def open_word_v2(self):
     p = filedialog.askopenfilename(filetypes=[('Word documents', '*.doc;*.docx;*.docm'), ('All files', '*.*')])
     if not p:
         return
-
     self.close_preview()
     self.status.config(text='Opening Word document inside Doc Sign...')
     self.root.update_idletasks()
@@ -111,11 +106,9 @@ def open_word_v2(self):
         temp_dir = Path(tempfile.gettempdir()) / 'DocSign'
         temp_dir.mkdir(parents=True, exist_ok=True)
         fd, preview_name = tempfile.mkstemp(prefix='word_preview_', suffix='.pdf', dir=str(temp_dir))
-        import os
         os.close(fd)
         preview = Path(preview_name)
         preview.unlink(missing_ok=True)
-
         word = core.win32com.client.DispatchEx('Word.Application')
         word.Visible = False
         word.DisplayAlerts = 0
@@ -125,7 +118,6 @@ def open_word_v2(self):
         wdoc = None
         word.Quit()
         word = None
-
         self.doc = fitz.open(str(preview))
         self.preview_pdf_path = preview
         self.path = Path(p)
@@ -176,7 +168,18 @@ def main():
         pass
     app = core.App(root)
 
+    # Make request-handler threads daemon threads so they cannot keep the EXE alive.
+    try:
+        app.server.daemon_threads = True
+    except Exception:
+        pass
+
+    shutting_down = {'value': False}
+
     def shutdown():
+        if shutting_down['value']:
+            return
+        shutting_down['value'] = True
         try:
             app.close_preview()
         except Exception:
@@ -184,9 +187,16 @@ def main():
         try:
             if app.server:
                 app.server.shutdown()
+                app.server.server_close()
         except Exception:
             pass
-        root.destroy()
+        try:
+            root.destroy()
+        except Exception:
+            pass
+        # PyInstaller/COM/network cleanup can occasionally leave a background thread alive.
+        # Force a clean process exit after all normal cleanup has been attempted.
+        os._exit(0)
 
     root.protocol('WM_DELETE_WINDOW', shutdown)
     root.mainloop()
