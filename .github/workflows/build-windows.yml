@@ -8,6 +8,7 @@ on:
       - 'doc_sign.py'
       - 'doc_sign_v2.py'
       - 'phone.html'
+      - 'README.md'
       - 'requirements.txt'
       - 'DocSign.iss'
       - '.github/workflows/build-windows.yml'
@@ -38,6 +39,7 @@ jobs:
           pyinstaller --noconfirm --clean --onefile --windowed `
             --name "Doc Sign" `
             --add-data "phone.html;." `
+            --add-data "README.md;." `
             --hidden-import win32timezone `
             --hidden-import doc_sign `
             doc_sign_v2.py
