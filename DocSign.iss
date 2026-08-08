@@ -1,5 +1,5 @@
 #define MyAppName "Doc Sign"
-#define MyAppVersion "1.0.3"
+#define MyAppVersion "1.0.4"
 #define MyAppPublisher "ECI Automation"
 #define MyAppExeName "Doc Sign.exe"
 
@@ -19,8 +19,6 @@ PrivilegesRequired=admin
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 UninstallDisplayIcon={app}\{#MyAppExeName}
-; Do not use Inno Setup Restart Manager for this one-file PyInstaller app.
-; It can falsely report Doc Sign as still using files even after uninstall/exit.
 CloseApplications=no
 RestartApplications=no
 
@@ -33,9 +31,12 @@ Name: "{autoprograms}\Doc Sign"; Filename: "{app}\{#MyAppExeName}"
 Name: "{autodesktop}\Doc Sign"; Filename: "{app}\{#MyAppExeName}"
 
 [Run]
+; Remove older Doc Sign rules first.
 Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall delete rule name=""Doc Sign Local Signing"""; Flags: runhidden waituntilterminated
 Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall delete rule name=""Doc Sign Local Signing TCP 8765"""; Flags: runhidden waituntilterminated
-Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall add rule name=""Doc Sign Local Signing TCP 8765"" dir=in action=allow protocol=TCP localport=8765 profile=private program=""{app}\{#MyAppExeName}"" enable=yes"; Flags: runhidden waituntilterminated
+; Allow Doc Sign on both Private and Public Windows profiles, but ONLY from the local subnet.
+; Rule is also restricted to this EXE, TCP, and port 8765.
+Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall add rule name=""Doc Sign Local Signing TCP 8765"" dir=in action=allow protocol=TCP localport=8765 remoteip=localsubnet profile=private,public program=""{app}\{#MyAppExeName}"" enable=yes"; Flags: runhidden waituntilterminated
 Filename: "{app}\{#MyAppExeName}"; Description: "Launch Doc Sign"; Flags: nowait postinstall skipifsilent
 
 [UninstallRun]
